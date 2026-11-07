@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "autoGenerate": {
+      "type": "boolean",
+      "title": "Generate _ide_helper.php automatically",
+      "description": "Writes Laravel's facade aliases to _ide_helper.php when a PHP file opens in a Laravel project and the file does not exist yet.",
+      "default": true
+    }
+  }
+}
