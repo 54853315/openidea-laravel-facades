@@ -122,12 +122,11 @@ fn ensure(project: &Project) -> Result<Outcome, Error> {
         return Ok(Outcome::NotLaravel);
     }
 
-    let mut aliases = match project.read_file(facades::FACADE_SOURCE) {
-        Ok(source) => facades::default_aliases(&source),
-        Err(Error::NotFound(_)) => return Ok(Outcome::NoAliases),
-        Err(e) => return Err(e),
+    let Some(source) = read_optional(project, facades::FACADE_SOURCE)? else {
+        return Ok(Outcome::NoAliases);
     };
-    if let Ok(source) = project.read_file(facades::CONFIG_SOURCE) {
+    let mut aliases = facades::default_aliases(&source);
+    if let Some(source) = read_optional(project, facades::CONFIG_SOURCE)? {
         for (alias, target) in facades::config_aliases(&source) {
             aliases.insert(alias, target);
         }
@@ -136,11 +135,7 @@ fn ensure(project: &Project) -> Result<Outcome, Error> {
         return Ok(Outcome::NoAliases);
     }
 
-    let existing = match project.read_file(facades::HELPER_FILE) {
-        Ok(text) => Some(text),
-        Err(Error::NotFound(_)) => None,
-        Err(e) => return Err(e),
-    };
+    let existing = read_optional(project, facades::HELPER_FILE)?;
     match facades::plan(existing.as_deref(), &aliases) {
         facades::Plan::Write(content) => {
             write_file(project, facades::HELPER_FILE, &content)?;
@@ -151,17 +146,35 @@ fn ensure(project: &Project) -> Result<Outcome, Error> {
     }
 }
 
+/// A file the plugin may need but that may not exist.
+///
+/// OpenIDEA 0.1.38 reports a missing file as `Invalid("<path>: no such file")`
+/// rather than `NotFound`, so both forms mean "absent" here. Anything else
+/// (an outside-root path, a directory, an unreadable file) stays an error.
+fn read_optional(project: &Project, path: &str) -> Result<Option<String>, Error> {
+    match project.read_file(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if is_missing(&e) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+fn is_missing(error: &Error) -> bool {
+    match error {
+        Error::NotFound(_) => true,
+        Error::Invalid(message) => message.contains("no such file") || message.contains("not found"),
+        _ => false,
+    }
+}
+
 /// A Laravel application: it has an `artisan` file or requires the framework.
 fn is_laravel(project: &Project) -> Result<bool, Error> {
-    match project.read_file("artisan") {
-        Ok(_) => return Ok(true),
-        Err(Error::NotFound(_)) | Err(Error::Invalid(_)) => {}
-        Err(e) => return Err(e),
+    if read_optional(project, "artisan")?.is_some() {
+        return Ok(true);
     }
-    match project.read_file("composer.json") {
-        Ok(composer) => Ok(composer.contains("\"laravel/framework\"")),
-        Err(Error::NotFound(_)) => Ok(false),
-        Err(e) => Err(e),
+    match read_optional(project, "composer.json")? {
+        Some(composer) => Ok(composer.contains("\"laravel/framework\"")),
+        None => Ok(false),
     }
 }
 
@@ -307,6 +320,15 @@ abstract class Facade
         let mut plugin = LaravelFacades::default();
         plugin.handle_events(&[Event::FileOpened("/p/routes/api.php".into())], &host.invocation());
         assert!(host.process_runs().is_empty());
+    }
+
+    #[test]
+    fn a_missing_file_is_absent_in_both_error_forms() {
+        assert!(is_missing(&Error::NotFound("_ide_helper.php".into())));
+        assert!(is_missing(&Error::Invalid("_ide_helper.php: no such file".into())));
+        assert!(is_missing(&Error::Invalid("_ide_helper.php: not found".into())));
+        assert!(!is_missing(&Error::Invalid("_ide_helper.php: access outside the project root is not allowed".into())));
+        assert!(!is_missing(&Error::Denied("project.read".into())));
     }
 
     #[test]

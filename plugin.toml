@@ -1,11 +1,11 @@
 id = "konakona.laravel-facades"
 name = "Laravel Facades"
-version = "0.1.0"
+version = "0.1.1"
 description = "Makes Intelephense resolve Laravel's facade aliases (Route, Auth, DB, …) in PHP files that use them without a `use` statement, such as routes/api.php. Writes Laravel's default aliases to the generated _ide_helper.php file."
 authors = ["konakona <kona@upfinance.ai>"]
 homepage = "https://github.com/54853315/openidea-laravel-facades"
 license = "MIT"
-change-notes = "0.1.0 — first release: generates _ide_helper.php with Laravel's default facade aliases so Intelephense stops reporting P1009 for unimported facades."
+change-notes = "0.1.1 — read a missing file as absent when OpenIDEA 0.1.38 reports it as Invalid, so the stub is generated in a project that has no _ide_helper.php yet. 0.1.0 — first release: generates _ide_helper.php with Laravel's default facade aliases so Intelephense stops reporting P1009 for unimported facades."
 categories = ["frameworks"]
 engines.openidea = "^1.2"
 wasm = "dist/plugin.wasm"
